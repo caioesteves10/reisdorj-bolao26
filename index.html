@@ -271,15 +271,20 @@ function groupTable(gl){
 
 /* ---------- firebase ---------- */
 async function initFB(){
+  let A,F;
   try{
-    const A=await import(`https://www.gstatic.com/firebasejs/${SVER}/firebase-app.js`);
-    const F=await import(`https://www.gstatic.com/firebasejs/${SVER}/firebase-firestore.js`);
+    A=await import(`https://www.gstatic.com/firebasejs/${SVER}/firebase-app.js`);
+    F=await import(`https://www.gstatic.com/firebasejs/${SVER}/firebase-firestore.js`);
+  }catch(e){ e.code="SDK_LOAD_FAIL"; throw e; }
+  try{
     FB=F; const app=A.initializeApp(firebaseConfig); db=F.getFirestore(app);
     await ensureSeed(); listen();
   }catch(e){
     console.warn("Firebase indisponível — modo local (somente leitura):",e);
     MOCK=true;
-    document.getElementById("offbar")?.classList.remove("hidden");
+    const ob=document.getElementById("offbar");
+    if(ob){ob.classList.remove("hidden");
+      ob.innerHTML="⚠️ <b>Sem conexão com o banco.</b><br>Erro: <b>"+((e&&e.code)||(e&&e.name)||"?")+"</b><br><span style='font-size:11px'>"+((e&&e.message)?String(e.message).slice(0,180):String(e)).replace(/</g,"&lt;")+"</span>";}
     for(const p in SEED.palpites)STATE.palpites[p]=JSON.parse(JSON.stringify(SEED.palpites[p]));
     STATE.results=JSON.parse(JSON.stringify(SEED.results));
     renderAll();
