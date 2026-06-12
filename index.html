@@ -22,6 +22,8 @@ b{font-weight:700}
 /* header */
 .head{display:flex;align-items:center;gap:10px;margin-bottom:2px}
 .crown{color:var(--gold);font-size:20px}
+#adminkey{cursor:pointer;padding:6px 10px 6px 2px;margin:-6px -10px -6px -2px;border-radius:8px}
+#adminkey:active{background:rgba(232,195,74,.15)}
 .kicker{color:var(--gold);font-size:11px;letter-spacing:.18em;font-weight:700;text-transform:uppercase}
 .title{font-family:'Playfair Display',serif;font-size:40px;font-weight:800;line-height:1.05;margin:2px 0 6px}
 .title .do{color:var(--gold);font-style:italic;font-weight:700}
@@ -200,7 +202,7 @@ b{font-weight:700}
 <!-- APP -->
 <div id="app" class="hidden">
   <div class="wrap">
-    <div class="head"><span class="crown">♛</span><span class="kicker">Bolão da Copa do Mundo · 2026</span></div>
+    <div class="head"><span class="crown" id="adminkey" title="admin">♛</span><span class="kicker">Bolão da Copa do Mundo · 2026</span></div>
     <div class="title">Reis <span class="do">do</span> Rio</div>
     <div class="sub">
       <span class="badge">Copa 2026</span>
@@ -366,6 +368,7 @@ $("#logout").onclick=()=>{localStorage.removeItem("rdr_user");STATE.me=null;show
 function enterApp(){
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
   $("#mename").textContent=STATE.me;
+  $("#adminkey").onclick=()=>{ renderAdmin(); show("admin"); };
   renderAll();
 }
 
@@ -390,7 +393,6 @@ function renderAll(){
   const sy=window.scrollY;
   $("#mename").textContent=STATE.me;
   $("#upd").textContent="Atualizado em "+(STATE.results.updated||"agora");
-  if(curTab==="admin"&&localStorage.getItem("rdr_admin")!=="1")curTab="rank";
   buildTabs(); renderRank(); renderPalp(); renderJogos(); renderGrupos(); renderMata(); renderGeral();
   if($("#p-admin"))renderAdmin();
   show(curTab);
