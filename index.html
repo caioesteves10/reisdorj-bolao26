@@ -134,6 +134,15 @@ b{font-weight:700}
 .grpline{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:3px 0}
 .grpline .gl{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;
  background:var(--panel2);border:1px solid var(--line);color:var(--gold);font-weight:800;font-size:11px;margin-right:3px}
+.gsec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.gsh{font-weight:800;color:var(--gold);font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:7px}
+.gsh .gl{width:22px;height:22px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);
+ display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.gprow{padding:8px 0;border-top:1px solid #103128}
+.gprow:first-of-type{border-top:none}
+.gpn{display:block;font-weight:700;font-size:12px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.gpv{display:flex;flex-wrap:wrap;gap:5px}
+.gtagx{background:var(--bg2);border:1px solid var(--line);border-radius:5px;padding:0 4px;font-size:10px;color:var(--gold);font-weight:800;margin-left:4px}
 /* chips */
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .chip{font-size:13px;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);
@@ -362,28 +371,30 @@ function enterApp(){
 
 /* ---------- tabs ---------- */
 const TABS=[["rank","Classificação"],["palp","Palpites"],["jogos","Jogos"],["grupos","Grupos"],["mata","Mata-mata"],["geral","Gerais"]];
+let curTab="rank";
 function buildTabs(){
   const isAdmin=STATE.me==="__admin__"||localStorage.getItem("rdr_admin")==="1";
   let t=TABS.slice(); if(isAdmin)t.push(["admin","Admin"]);
-  $("#tabs").innerHTML=t.map((x,i)=>`<div class="tab${i===0?' on':''}" data-t="${x[0]}">${x[1]}</div>`).join("");
+  $("#tabs").innerHTML=t.map(x=>`<div class="tab${x[0]===curTab?' on':''}" data-t="${x[0]}">${x[1]}</div>`).join("");
   $("#tabs").querySelectorAll(".tab").forEach(el=>el.onclick=()=>show(el.dataset.t));
 }
 function show(t){
+  curTab=t;
   document.querySelectorAll(".tab").forEach(e=>e.classList.toggle("on",e.dataset.t===t));
-  document.querySelectorAll(".panel").forEach(e=>e.classList.remove("on"));
-  $("#p-"+t).classList.add("on");
+  document.querySelectorAll(".panel").forEach(e=>e.classList.toggle("on",e.id==="p-"+t));
 }
 
 /* ---------- render ---------- */
 function renderAll(){
   if(!STATE.me)return;
+  const sy=window.scrollY;
   $("#mename").textContent=STATE.me;
   $("#upd").textContent="Atualizado em "+(STATE.results.updated||"agora");
+  if(curTab==="admin"&&localStorage.getItem("rdr_admin")!=="1")curTab="rank";
   buildTabs(); renderRank(); renderPalp(); renderJogos(); renderGrupos(); renderMata(); renderGeral();
   if($("#p-admin"))renderAdmin();
-  // keep current tab active (default rank on first paint)
-  if(!document.querySelector(".tab.on"))show("rank");
-  else { const cur=document.querySelector(".tab.on")?.dataset.t||"rank"; $("#p-"+cur)?.classList.add("on"); }
+  show(curTab);
+  window.scrollTo(0,sy);
 }
 
 function renderRank(){
@@ -510,22 +521,29 @@ function renderMata(){
 function renderGeral(){
   const chips=chipbar(selG,"gall","g");
   const sel=PLAYERS.slice().sort(byName).filter(n=>selG.has(n));
-  const cards=sel.map(n=>{
-    const g=(STATE.palpites[n]||{}).general||{};
-    if(!g.camp)return `<div class="gcard"><div class="gn">${n}</div><span class="np">sem palpites gerais</span></div>`;
-    const grpHtml=Object.keys(GROUPS).map(gl=>{const t=(g.grp&&g.grp[gl])||[];
-      return `<div class="grpline"><span class="gl">${gl}</span>${t.map((tm,i)=>`<span class="pill"><span class="em">${i+1}º</span>${flag(tm)} ${tm}</span>`).join("")}</div>`;}).join("");
-    const thirds=(g.thirds||[]).map(tm=>`<span class="pill">${flag(tm)} ${tm}</span>`).join("");
-    return `<div class="gcard"><div class="gn">${n}</div>
-      <div class="grow">
-        <span class="pill"><span class="em">🏆</span>${flag(g.camp)} ${g.camp}</span>
+  const G=n=>(STATE.palpites[n]||{}).general||{};
+  const teamGroup={}; Object.keys(GROUPS).forEach(gl=>GROUPS[gl].forEach(t=>teamGroup[t]=gl));
+  let html=`<div class="sect">Palpites gerais</div>${chips}`;
+  if(!sel.length){$("#p-geral").innerHTML=html+`<div class="empty">Selecione um ou mais jogadores acima.</div>`;wireChips("#p-geral",selG,"gall","g",renderGeral);return;}
+  const row=(n,inner)=>`<div class="gprow"><span class="gpn">${n}</span><span class="gpv">${inner||'<span class="np">—</span>'}</span></div>`;
+  // 1) Campeão/Vice/3º/Artilheiro
+  html+=`<div class="gsec"><div class="gsh">🏆 Campeão · Vice · 3º · Artilheiro</div>`+
+    sel.map(n=>{const g=G(n); if(!g.camp)return row(n,"");
+      return row(n,`<span class="pill"><span class="em">🏆</span>${flag(g.camp)} ${g.camp}</span>
         <span class="pill"><span class="em">🥈</span>${flag(g.vice)} ${g.vice}</span>
         <span class="pill"><span class="em">🥉</span>${flag(g.terc)} ${g.terc}</span>
-        <span class="pill"><span class="em">⚽</span>${g.arti}</span></div>
-      <div class="glbl">Grupos · 1º / 2º / 3º</div>${grpHtml}
-      <div class="glbl">8 melhores 3ºs</div><div class="grow">${thirds||'<span class="np">—</span>'}</div></div>`;
-  }).join("");
-  $("#p-geral").innerHTML=`<div class="sect">Palpites gerais</div>${chips}${cards||'<div class="empty">Selecione um ou mais jogadores acima.</div>'}`;
+        <span class="pill"><span class="em">⚽</span>${g.arti}</span>`);}).join("")+`</div>`;
+  // 2) per group
+  Object.keys(GROUPS).forEach(gl=>{
+    html+=`<div class="gsec"><div class="gsh"><span class="gl">${gl}</span>Grupo ${gl} · 1º / 2º / 3º</div>`+
+      sel.map(n=>{const t=(G(n).grp&&G(n).grp[gl])||[];
+        return row(n,t.length?t.map((tm,i)=>`<span class="pill"><span class="em">${i+1}º</span>${flag(tm)} ${tm}</span>`).join(""):"");}).join("")+`</div>`;
+  });
+  // 3) 8 best thirds (sorted by group)
+  html+=`<div class="gsec"><div class="gsh">🥉 8 melhores 3ºs colocados</div>`+
+    sel.map(n=>{const th=(G(n).thirds||[]).slice().sort((a,b)=>(teamGroup[a]||"Z").localeCompare(teamGroup[b]||"Z")||byName(a,b));
+      return row(n,th.length?th.map(tm=>`<span class="pill">${flag(tm)} ${tm}<span class="gtagx">${teamGroup[tm]||"?"}</span></span>`).join(""):"");}).join("")+`</div>`;
+  $("#p-geral").innerHTML=html;
   wireChips("#p-geral",selG,"gall","g",renderGeral);
 }
 
