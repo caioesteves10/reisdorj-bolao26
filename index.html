@@ -128,6 +128,12 @@ b{font-weight:700}
 .pill{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);
  border-radius:8px;padding:4px 9px;font-size:13px;margin:3px 5px 3px 0}
 .pill .em{font-size:13px}
+.gc .top.gtog{cursor:pointer}
+.grow{margin:2px 0 4px}
+.glbl{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 4px;font-weight:700}
+.grpline{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:3px 0}
+.grpline .gl{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;
+ background:var(--panel2);border:1px solid var(--line);color:var(--gold);font-weight:800;font-size:11px;margin-right:3px}
 /* chips */
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .chip{font-size:13px;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);
@@ -441,18 +447,36 @@ function renderPalp(){
   });
 }
 
+let selJ=new Set(PLAYERS), selG=new Set(PLAYERS); const openG=new Set();
+function chipbar(sel,kindAll,kind){
+  const all=sel.size===PLAYERS.length;
+  return `<div class="chips"><span class="chip all${all?' on':''}" data-${kindAll}>Todos</span>`+
+    PLAYERS.slice().sort(byName).map(n=>`<span class="chip${sel.has(n)?' on':''}" data-${kind}="${n}">${n}</span>`).join("")+`</div>`;
+}
 function renderJogos(){
   const doneG=SCHED.filter(g=>done(g.id)).sort((a,b)=>kickoff(b)-kickoff(a));
   const next=SCHED.filter(g=>!done(g.id)).sort((a,b)=>kickoff(a)-kickoff(b)).slice(0,10);
-  const dcards=doneG.map(g=>{const m=gmeta(g),r=RES()[g.id];
-    return `<div class="gc"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
-      <div class="dt"><span class="of">${r[0]} × ${r[1]}</span><br>${m.dow} ${m.date}</div></div></div>`;}).join("");
+  const chips=chipbar(selJ,"jall","j");
+  const dcards=doneG.map(g=>{const m=gmeta(g),r=RES()[g.id],open=openG.has(g.id);
+    const exp=open?PLAYERS.slice().sort(byName).filter(n=>selJ.has(n)).map(n=>{
+      const pk=myPk(n,g.id),pts=gamePts(pk,g),cr=pk&&pk[0]===r[0]&&pk[1]===r[1];
+      const lbl=pk?`<span class="pk${cr?' cr':''}">${pk[0]} × ${pk[1]}</span>`:'<span class="np">não palpitou</span>';
+      return `<div class="prow${cr?' cr':''}"><span class="pn">${cr?'<span class="cravou">CRAVOU</span>':''}${n}</span>${lbl}${pts!=null?`<span class="pts-b">+${pts} pt</span>`:''}</div>`;
+    }).join(""):'';
+    return `<div class="gc"><div class="top gtog" data-g="${g.id}"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
+      <div class="dt"><span class="of">${r[0]} × ${r[1]}</span> ${open?'▲':'▼'}</div></div>${exp}</div>`;}).join("");
   const ncards=next.map(g=>{const m=gmeta(g);
     return `<div class="gc"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
       <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div></div>`;}).join("");
   $("#p-jogos").innerHTML=
-    (doneG.length?`<div class="sect">Jogos concluídos</div>${dcards}`:"")+
+    (doneG.length?`<div class="sect">Jogos concluídos <span class="r">toque p/ ver palpites</span></div>${chips}${dcards}`:"")+
     `<div class="sect">Próximos jogos <span class="r">horário de Brasília</span></div>${ncards||'<div class="empty">—</div>'}`;
+  wireChips("#p-jogos",selJ,"jall","j",renderJogos);
+  $("#p-jogos").querySelectorAll(".gtog").forEach(e=>e.onclick=()=>{const id=+e.dataset.g;openG.has(id)?openG.delete(id):openG.add(id);renderJogos();});
+}
+function wireChips(panel,sel,kindAll,kind,rerender){
+  $(panel).querySelector(`[data-${kindAll}]`)?.addEventListener("click",()=>{if(sel.size===PLAYERS.length)sel.clear();else PLAYERS.forEach(n=>sel.add(n));rerender();});
+  $(panel).querySelectorAll(`[data-${kind}]`).forEach(e=>e.addEventListener("click",()=>{const n=e.dataset[kind];sel.has(n)?sel.delete(n):sel.add(n);rerender();}));
 }
 
 function renderGrupos(){
@@ -484,16 +508,25 @@ function renderMata(){
 }
 
 function renderGeral(){
-  const cards=PLAYERS.slice().sort(byName).map(n=>{
+  const chips=chipbar(selG,"gall","g");
+  const sel=PLAYERS.slice().sort(byName).filter(n=>selG.has(n));
+  const cards=sel.map(n=>{
     const g=(STATE.palpites[n]||{}).general||{};
     if(!g.camp)return `<div class="gcard"><div class="gn">${n}</div><span class="np">sem palpites gerais</span></div>`;
+    const grpHtml=Object.keys(GROUPS).map(gl=>{const t=(g.grp&&g.grp[gl])||[];
+      return `<div class="grpline"><span class="gl">${gl}</span>${t.map((tm,i)=>`<span class="pill"><span class="em">${i+1}º</span>${flag(tm)} ${tm}</span>`).join("")}</div>`;}).join("");
+    const thirds=(g.thirds||[]).map(tm=>`<span class="pill">${flag(tm)} ${tm}</span>`).join("");
     return `<div class="gcard"><div class="gn">${n}</div>
-      <span class="pill"><span class="em">🏆</span>${flag(g.camp)} ${g.camp}</span>
-      <span class="pill"><span class="em">🥈</span>${flag(g.vice)} ${g.vice}</span>
-      <span class="pill"><span class="em">🥉</span>${flag(g.terc)} ${g.terc}</span>
-      <span class="pill"><span class="em">⚽</span>${g.arti}</span></div>`;
+      <div class="grow">
+        <span class="pill"><span class="em">🏆</span>${flag(g.camp)} ${g.camp}</span>
+        <span class="pill"><span class="em">🥈</span>${flag(g.vice)} ${g.vice}</span>
+        <span class="pill"><span class="em">🥉</span>${flag(g.terc)} ${g.terc}</span>
+        <span class="pill"><span class="em">⚽</span>${g.arti}</span></div>
+      <div class="glbl">Grupos · 1º / 2º / 3º</div>${grpHtml}
+      <div class="glbl">8 melhores 3ºs</div><div class="grow">${thirds||'<span class="np">—</span>'}</div></div>`;
   }).join("");
-  $("#p-geral").innerHTML=`<div class="sect">Palpites gerais <span class="r">campeão · vice · 3º · artilheiro</span></div>${cards}`;
+  $("#p-geral").innerHTML=`<div class="sect">Palpites gerais</div>${chips}${cards||'<div class="empty">Selecione um ou mais jogadores acima.</div>'}`;
+  wireChips("#p-geral",selG,"gall","g",renderGeral);
 }
 
 /* ---------- admin ---------- */
