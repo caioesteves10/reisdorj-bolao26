@@ -93,6 +93,31 @@ b{font-weight:700}
 .pts-b{font-size:12px;color:var(--green2);border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-weight:700;min-width:54px;text-align:center}
 .np{color:var(--muted);font-style:italic;font-size:13px}
 .cravou{color:var(--gold);font-size:10px;letter-spacing:.12em;font-weight:800;margin-right:2px}
+/* saved palpite badge */
+.saved-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--green2);
+  background:#123a2f;border:1px solid var(--green);border-radius:99px;padding:3px 10px;margin:0 14px 12px}
+/* knockout bracket */
+.brk{display:flex;align-items:stretch;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 2px 16px;--conn:13px;--cardw:142px}
+.brk-hint{color:var(--muted);font-size:12px;margin:-2px 0 10px}
+.brk-cw{flex:0 0 auto;display:flex;flex-direction:column;width:var(--cardw);margin-right:calc(var(--conn)*2)}
+.brk-cw:last-child{margin-right:0}
+.brk-rh{font-size:10px;letter-spacing:.1em;font-weight:800;text-transform:uppercase;color:var(--gold);text-align:center;margin-bottom:6px}
+.brk-col{flex:1;display:flex;flex-direction:column}
+.brk-match{flex:1;display:flex;align-items:center;position:relative;min-height:52px}
+.brk-card{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+.brk-card.done{border-color:var(--gold2)}
+.brk-card.fin{background:linear-gradient(135deg,#10463a,#0c3329);border-color:var(--gold)}
+.brk-row{display:flex;align-items:center;gap:5px;font-size:12px;line-height:1.45}
+.brk-row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brk-row .sc{font-weight:800;color:var(--gold);min-width:12px;text-align:right}
+.brk-row.ph .nm{color:var(--muted);font-style:italic}
+.brk-row.win .nm{font-weight:800;color:var(--green2)}
+.brk-card .mt{font-size:9px;color:var(--muted);margin-top:3px;text-align:center}
+/* connectors: each pair joins into the next round's match */
+.brk-cw:not(:last-child) .brk-match::after{content:"";position:absolute;right:calc(-1*var(--conn));width:var(--conn);height:50%;border:2px solid var(--line);border-left:0}
+.brk-cw:not(:last-child) .brk-match:nth-child(odd)::after{top:50%;border-bottom:0;border-top-right-radius:6px}
+.brk-cw:not(:last-child) .brk-match:nth-child(even)::after{bottom:50%;border-top:0;border-bottom-right-radius:6px}
+.brk-cw:not(:first-child) .brk-match::before{content:"";position:absolute;left:calc(-1*var(--conn));top:50%;width:var(--conn);height:2px;background:var(--line)}
 /* input */
 .inp-row{display:flex;align-items:center;gap:8px;padding:13px 14px}
 .inp-row .lbl{flex:1;color:var(--muted);font-size:13px}
@@ -426,15 +451,18 @@ function renderPalp(){
   if(!open.length){$("#p-palp").innerHTML=`<div class="empty">Nenhum jogo aberto pra palpitar agora — os próximos aparecem conforme a data chega. Os que já começaram estão na aba <b>Jogos</b>.</div>`;return;}
   const cards=open.map(g=>{
     const m=gmeta(g);
-    const pk=myPk(STATE.me,g.id)||["",""];
+    const mine=myPk(STATE.me,g.id);
+    const pk=mine||["",""];
     const cnt=PLAYERS.filter(n=>myPk(n,g.id)).length;
+    const badge=mine?`<div class="saved-badge">✓ Palpite salvo (${pk[0]}×${pk[1]}) · editável até o apito</div>`:"";
     return `<div class="gc" data-g="${g.id}"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
         <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div>
         <div class="inp-row"><span class="lbl">Seu palpite</span>
           <input class="score-in" id="ph-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${pk[0]??''}">
           <span class="score-x">×</span>
           <input class="score-in" id="pa-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${pk[1]??''}">
-          <button class="btn sm" data-save="${g.id}">Salvar</button></div>
+          <button class="btn sm" data-save="${g.id}">${mine?"Atualizar":"Salvar"}</button></div>
+        ${badge}
         <div class="count">🔒 ${cnt}/${PLAYERS.length} já palpitaram · os palpites de todos aparecem na aba Jogos quando o jogo começar</div></div>`;
   }).join("");
   $("#p-palp").innerHTML=`<div class="warnbox">Você edita seu palpite até o apito inicial. Quando o jogo começa, ele <b>trava</b> e vai pra aba <b>Jogos</b>, onde aparecem os palpites de todos. ⏱️</div>${cards}${moreLater?'<div class="note">Os próximos jogos aparecem aqui conforme a data se aproxima. 📅</div>':''}`;
@@ -442,7 +470,8 @@ function renderPalp(){
     const id=+b.dataset.save, h=$("#ph-"+id).value.trim(), a=$("#pa-"+id).value.trim();
     if(h===""||a===""){toast("Preencha os dois placares");return;}
     if(started(GById[id])){toast("Jogo já começou — palpite travado");renderAll();return;}
-    b.disabled=true; await savePalpite(id,+h,+a); toast("Palpite salvo! ✅"); b.disabled=false;
+    b.disabled=true; await savePalpite(id,+h,+a); toast("Palpite salvo! ✅");
+    const y=window.scrollY; renderPalp(); window.scrollTo(0,y);
   });
 }
 
@@ -496,15 +525,25 @@ function renderGrupos(){
 }
 
 function renderMata(){
-  const rounds=["Oitavas de 32","Oitavas de final","Quartas de final","Semifinal","Terceiro lugar","Final"];
-  const html=rounds.map(rd=>{
-    const gs=KO.filter(k=>k.round===rd);
-    const cards=gs.map(k=>{const m=gmeta(k);
-      return `<div class="gc"><div class="top"><div class="tm" style="font-size:14px">${k.h} <span class="x">×</span> ${k.a}</div>
-        <div class="dt">${m.dow} ${m.date}<br>${k.city}</div></div></div>`;}).join("");
-    return `<div class="sect" style="margin-top:14px">${rd}</div>${cards}`;
-  }).join("");
-  $("#p-mata").innerHTML=html;
+  const order=[["Oitavas de 32","32-avos"],["Oitavas de final","Oitavas"],["Quartas de final","Quartas"],["Semifinal","Semis"],["Final","Final"]];
+  const byId=Object.fromEntries(KO.map(k=>[k.id,k]));
+  const feed=k=>[k.h,k.a].filter(s=>/^Venc\. /.test(s)).map(s=>+s.split(" ")[1]);
+  // build top-to-bottom visual order per round via in-order traversal from the Final
+  const ord={}; order.forEach(([rd])=>ord[rd]=[]);
+  const fin=KO.find(k=>k.round==="Final");
+  (function visit(k){const f=feed(k); if(f.length===2){visit(byId[f[0]]); ord[k.round].push(k); visit(byId[f[1]]);} else {ord[k.round].push(k);}})(fin);
+  const isTeam=x=>!!FLAGS[x];
+  const cell=(name,score,win,ph)=>`<div class="brk-row ${win?"win":""} ${ph?"ph":""}"><span class="nm">${ph?name:flag(name)+" "+name}</span>${score!=null?`<span class="sc">${score}</span>`:""}</div>`;
+  const card=k=>{const r=RES()[k.id],done=!!r,hw=done&&r[0]>r[1],aw=done&&r[1]>r[0];
+    const cls="brk-card"+(k.round==="Final"?" fin":done?" done":"");
+    return `<div class="brk-match"><div class="${cls}">${cell(k.h,done?r[0]:null,hw,!isTeam(k.h))}${cell(k.a,done?r[1]:null,aw,!isTeam(k.a))}<div class="mt">${k.city||""}</div></div></div>`;};
+  const cols=order.map(([rd,short])=>`<div class="brk-cw"><div class="brk-rh">${short}</div><div class="brk-col">${ord[rd].map(card).join("")}</div></div>`).join("");
+  const tp=KO.find(k=>k.round==="Terceiro lugar"); let tphtml="";
+  if(tp){const r=RES()[tp.id],done=!!r,hw=done&&r[0]>r[1],aw=done&&r[1]>r[0];
+    tphtml=`<div class="sect" style="margin-top:12px">Disputa de 3º lugar</div>
+      <div class="brk-card ${done?"done":""}" style="max-width:250px">${cell(tp.h,done?r[0]:null,hw,!isTeam(tp.h))}${cell(tp.a,done?r[1]:null,aw,!isTeam(tp.a))}<div class="mt">${tp.city||""}</div></div>`;
+  }
+  $("#p-mata").innerHTML=`<div class="brk-hint">Arraste pro lado pra ver todas as fases →</div><div class="brk">${cols}</div>${tphtml}`;
 }
 
 function renderGeral(){
