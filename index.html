@@ -95,9 +95,9 @@ b{font-weight:700}
 .cravou{color:var(--gold);font-size:10px;letter-spacing:.12em;font-weight:800;margin-right:2px}
 /* saved palpite badge */
 .saved-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--green2);
-  background:#123a2f;border:1px solid var(--green);border-radius:99px;padding:3px 10px;margin:0 14px 12px}
+  background:#123a2f;border:1px solid var(--green);border-radius:14px;padding:4px 11px;margin:0 14px 12px;max-width:calc(100% - 28px);white-space:normal;line-height:1.35}
 .unsaved-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#ff9b9b;
-  background:#3a1414;border:1px solid var(--danger);border-radius:99px;padding:3px 10px;margin:0 14px 12px}
+  background:#3a1414;border:1px solid var(--danger);border-radius:14px;padding:4px 11px;margin:0 14px 12px;max-width:calc(100% - 28px);white-space:normal;line-height:1.35}
 .sc-add-row{display:flex;align-items:center;gap:8px;margin-top:8px}
 .sc-qty-lbl{font-size:13px;color:var(--muted)}
 #scqty{width:56px;text-align:center;flex:0 0 auto}
@@ -462,7 +462,7 @@ function renderPalp(){
     const mine=myPk(STATE.me,g.id);
     const pk=mine||["",""];
     const cnt=PLAYERS.filter(n=>myPk(n,g.id)).length;
-    const badge=mine?`<div class="saved-badge">✓ Palpite salvo (${pk[0]}×${pk[1]}) · editável até o apito</div>`:`<div class="unsaved-badge">⚠️ Você ainda não salvou seu palpite</div>`;
+    const badge=mine?`<div class="saved-badge">✓ Parabéns por fazer o mínimo! Palpite salvo (${pk[0]}×${pk[1]})</div>`:`<div class="unsaved-badge">⚠️ SEU PALPITE NÃO ESTÁ SALVO, ARROMBADO — clica em salvar!!</div>`;
     return `<div class="gc" data-g="${g.id}"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
         <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div>
         <div class="inp-row"><span class="lbl">Seu palpite</span>
