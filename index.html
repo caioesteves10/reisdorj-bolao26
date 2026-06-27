@@ -107,6 +107,8 @@ b{font-weight:700}
 .q3out{display:inline-block;font-size:9px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 6px;margin-left:5px;vertical-align:middle;white-space:nowrap}
 .ar.in{background:var(--green);color:#06210f}
 .ar.out{opacity:.45}
+.ko-tag{display:inline-block;font-size:11px;font-weight:700;color:var(--gold);background:#0c3329;border:1px solid var(--gold2);border-radius:8px;padding:3px 9px;margin:0 14px 10px}
+.ko-mini{font-size:9px;font-weight:800;color:#0b2a12;background:var(--gold);border-radius:5px;padding:0 4px;margin-left:4px;vertical-align:middle}
 /* knockout bracket */
 .brk{display:flex;align-items:stretch;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 2px 16px;--conn:13px;--cardw:142px}
 .brk-hint{color:var(--muted);font-size:12px;margin:-2px 0 10px}
@@ -381,6 +383,11 @@ function resolveSlot(s){
 }
 function winnerOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n]; if(r[0]===r[1])return null; return resolveSlot(r[0]>r[1]?k.h:k.a); }
 function loserOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n]; if(r[0]===r[1])return null; return resolveSlot(r[0]>r[1]?k.a:k.h); }
+// teams to display for any game (group=real; knockout=resolved, may be null)
+function dispTeams(g){ if(g.id<=72)return[g.h,g.a]; const a=resolveSlot(g.h),b=resolveSlot(g.a); return[a.team,b.team]; }
+function bothResolved(g){ const[h,a]=dispTeams(g); return !!h&&!!a; }
+const KOROUND={"Oitavas de 32":"32-avos","Oitavas de final":"Oitavas","Quartas de final":"Quartas","Semifinal":"Semifinal","Terceiro lugar":"3º lugar","Final":"Final"};
+const AById=Object.assign({},GById,KById);
 
 /* ---------- firebase ---------- */
 async function initFB(){
@@ -523,18 +530,20 @@ function renderRank(){
 }
 
 function renderPalp(){
-  const now=Date.now(), WIN=5*86400000;
-  const open=SCHED.filter(g=>!done(g.id)&&!started(g)&&kickoff(g)-now<=WIN).sort((a,b)=>kickoff(a)-kickoff(b));
-  const moreLater=SCHED.some(g=>!done(g.id)&&!started(g)&&kickoff(g)-now>WIN);
-  if(!open.length){$("#p-palp").innerHTML=`<div class="empty">Nenhum jogo aberto pra palpitar agora — os próximos aparecem conforme a data chega. Os que já começaram estão na aba <b>Jogos</b>.</div>`;return;}
+  const now=Date.now(), WIN=5*86400000, POOL=SCHED.concat(KO);
+  const open=POOL.filter(g=>!done(g.id)&&!started(g)&&bothResolved(g)&&kickoff(g)-now<=WIN).sort((a,b)=>kickoff(a)-kickoff(b));
+  const moreLater=POOL.some(g=>!done(g.id)&&!started(g)&&bothResolved(g)&&kickoff(g)-now>WIN);
+  if(!open.length){$("#p-palp").innerHTML=`<div class="empty">Nenhum jogo aberto pra palpitar agora — os próximos aparecem conforme a data chega (inclusive os de mata-mata, assim que os dois times se definem). Os que já começaram estão na aba <b>Jogos</b>.</div>`;return;}
   const cards=open.map(g=>{
     const m=gmeta(g);
+    const [h,a]=dispTeams(g);
     const mine=myPk(STATE.me,g.id);
     const pk=mine||["",""];
     const cnt=PLAYERS.filter(n=>myPk(n,g.id)).length;
+    const ko=g.id>72?`<div class="ko-tag">🏆 Mata-mata · ${KOROUND[g.round]||g.round} · vale <b>2×</b></div>`:"";
     const badge=mine?`<div class="saved-badge">✓ Parabéns por fazer o mínimo! Palpite salvo (${pk[0]}×${pk[1]})</div>`:`<div class="unsaved-badge">⚠️ SE NÃO SALVAR VAI TER QUE MAMAR O ADM</div>`;
-    return `<div class="gc" data-g="${g.id}"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
-        <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div>
+    return `<div class="gc" data-g="${g.id}"><div class="top"><div class="tm">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}</div>
+        <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div>${ko}
         <div class="inp-row"><span class="lbl">Seu palpite</span>
           <input class="score-in" id="ph-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${pk[0]??''}">
           <span class="score-x">×</span>
@@ -547,7 +556,7 @@ function renderPalp(){
   $("#p-palp").querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{
     const id=+b.dataset.save, h=$("#ph-"+id).value.trim(), a=$("#pa-"+id).value.trim();
     if(h===""||a===""){toast("Preencha os dois placares");return;}
-    if(started(GById[id])){toast("Jogo já começou — palpite travado");renderAll();return;}
+    if(started(AById[id])){toast("Jogo já começou — palpite travado");renderAll();return;}
     b.disabled=true; await savePalpite(id,+h,+a); toast("Palpite salvo! ✅");
     const y=window.scrollY; renderPalp(); window.scrollTo(0,y);
   });
@@ -560,20 +569,22 @@ function chipbar(sel,kindAll,kind){
     PLAYERS.slice().sort(byName).map(n=>`<span class="chip${sel.has(n)?' on':''}" data-${kind}="${n}">${n}</span>`).join("")+`</div>`;
 }
 function renderJogos(){
-  const startedG=SCHED.filter(g=>started(g)).sort((a,b)=>kickoff(b)-kickoff(a));
-  const next=SCHED.filter(g=>!started(g)).sort((a,b)=>kickoff(a)-kickoff(b)).slice(0,10);
+  const POOL=SCHED.concat(KO);
+  const startedG=POOL.filter(g=>started(g)&&bothResolved(g)).sort((a,b)=>kickoff(b)-kickoff(a));
+  const next=POOL.filter(g=>!started(g)&&bothResolved(g)).sort((a,b)=>kickoff(a)-kickoff(b)).slice(0,10);
   const chips=chipbar(selJ,"jall","j");
-  const dcards=startedG.map(g=>{const m=gmeta(g),r=RES()[g.id],isDone=done(g.id),open=openG.has(g.id);
+  const dcards=startedG.map(g=>{const m=gmeta(g),r=RES()[g.id],isDone=done(g.id),open=openG.has(g.id),[h,a]=dispTeams(g);
     const exp=open?PLAYERS.slice().sort(byName).filter(n=>selJ.has(n)).map(n=>{
       const pk=myPk(n,g.id),pts=gamePts(pk,g),cr=isDone&&pk&&pk[0]===r[0]&&pk[1]===r[1];
       const lbl=pk?`<span class="pk${cr?' cr':''}">${pk[0]} × ${pk[1]}</span>`:'<span class="np">não palpitou</span>';
       return `<div class="prow${cr?' cr':''}"><span class="pn">${cr?'<span class="cravou">CRAVOU</span>':''}${n}</span>${lbl}${pts!=null?`<span class="pts-b">+${pts} pt</span>`:''}</div>`;
     }).join(""):'';
     const status=isDone?`<span class="of">${r[0]} × ${r[1]}</span>`:`<span class="stbadge st-live">🟢 em andamento</span>`;
-    return `<div class="gc"><div class="top gtog" data-g="${g.id}"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
+    const kotag=g.id>72?` <span class="ko-mini">2×</span>`:"";
+    return `<div class="gc"><div class="top gtog" data-g="${g.id}"><div class="tm">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}${kotag}</div>
       <div class="dt">${status} ${open?'▲':'▼'}</div></div>${exp}</div>`;}).join("");
-  const ncards=next.map(g=>{const m=gmeta(g);
-    return `<div class="gc"><div class="top"><div class="tm">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}</div>
+  const ncards=next.map(g=>{const m=gmeta(g),[h,a]=dispTeams(g),kotag=g.id>72?` <span class="ko-mini">2×</span>`:"";
+    return `<div class="gc"><div class="top"><div class="tm">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}${kotag}</div>
       <div class="dt">${m.dow} ${m.date}<br>${m.time}</div></div></div>`;}).join("");
   $("#p-jogos").innerHTML=
     (startedG.length?`<div class="sect">Em andamento e concluídos <span class="r">toque p/ ver palpites</span></div>${chips}${dcards}`:"")+
