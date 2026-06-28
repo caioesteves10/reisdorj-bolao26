@@ -430,7 +430,7 @@ async function savePalpite(id,h,a){
   await FB.setDoc(FB.doc(db,"palpites",STATE.me),{games:{[id]:[h,a]}},{merge:true});
 }
 async function saveResult(id,h,a){
-  const upd=`${gmeta(GById[id]||{mo:6,da:1,ho:0,mi:0}).dow} ${gmeta(GById[id]||{mo:6,da:1,ho:0,mi:0}).date}`;
+  const gm=AById[id]||{mo:6,da:1,ho:0,mi:0}; const upd=`${gmeta(gm).dow} ${gmeta(gm).date}`;
   if(MOCK){STATE.results.games[id]=[h,a];renderAll();return;}
   await FB.setDoc(FB.doc(db,"meta","results"),{games:{[id]:[h,a]},updated:upd},{merge:true});
 }
@@ -531,8 +531,8 @@ function renderRank(){
 
 function renderPalp(){
   const now=Date.now(), WIN=5*86400000, POOL=SCHED.concat(KO);
-  const open=POOL.filter(g=>!done(g.id)&&!started(g)&&bothResolved(g)&&kickoff(g)-now<=WIN).sort((a,b)=>kickoff(a)-kickoff(b));
-  const moreLater=POOL.some(g=>!done(g.id)&&!started(g)&&bothResolved(g)&&kickoff(g)-now>WIN);
+  const open=POOL.filter(g=>!done(g.id)&&!started(g)&&bothResolved(g)&&(g.id>72||kickoff(g)-now<=WIN)).sort((a,b)=>kickoff(a)-kickoff(b));
+  const moreLater=SCHED.some(g=>!done(g.id)&&!started(g)&&kickoff(g)-now>WIN);
   if(!open.length){$("#p-palp").innerHTML=`<div class="empty">Nenhum jogo aberto pra palpitar agora — os próximos aparecem conforme a data chega (inclusive os de mata-mata, assim que os dois times se definem). Os que já começaram estão na aba <b>Jogos</b>.</div>`;return;}
   const cards=open.map(g=>{
     const m=gmeta(g);
@@ -691,14 +691,15 @@ function renderAdmin(){
     $("#aenter").onclick=()=>{if($("#apin").value.trim()===ADMIN_PIN){localStorage.setItem("rdr_admin","1");buildTabs();show("admin");renderAdmin();}else $("#aerr").textContent="PIN incorreto.";};
     return;
   }
-  // results entry: started or upcoming within window; pending-result first
+  // results entry: group games started/within window + ALL resolved knockout games; pending-result first
   const now=Date.now(), WIN=5*86400000;
-  const cand=SCHED.filter(g=>started(g)||kickoff(g)-now<=WIN);
+  const cand=SCHED.filter(g=>started(g)||kickoff(g)-now<=WIN).concat(KO.filter(g=>bothResolved(g)));
   const akey=g=>{const st=started(g),dn=done(g.id);
     if(st&&!dn)return[0,-kickoff(g)]; if(!st)return[1,kickoff(g)]; return[2,-kickoff(g)];};
   cand.sort((a,b)=>{const ka=akey(a),kb=akey(b);return ka[0]-kb[0]||ka[1]-kb[1];});
-  const resRows=cand.map(g=>{const r=RES()[g.id]||["",""];const m=gmeta(g);
-    return `<div class="adm-row"><div class="am">${flag(g.h)} ${g.h} <span class="x">×</span> ${g.a} ${flag(g.a)}<small>${m.dow} ${m.date} · ${m.time}${done(g.id)?' · ✅ lançado':''}</small></div>
+  const resRows=cand.map(g=>{const r=RES()[g.id]||["",""];const m=gmeta(g);const[h,a]=dispTeams(g);
+    const ko=g.id>72?` <span class="ko-mini">${KOROUND[g.round]||''} 2×</span>`:'';
+    return `<div class="adm-row"><div class="am">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}${ko}<small>${m.dow} ${m.date} · ${m.time}${done(g.id)?' · ✅ lançado':''}</small></div>
       <input class="score-in" id="rh-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${r[0]}">
       <input class="score-in" id="ra-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${r[1]}">
       <button class="btn sm" data-res="${g.id}">${done(g.id)?'↻':'Salvar'}</button>
