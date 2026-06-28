@@ -116,6 +116,12 @@ b{font-weight:700}
 .ts-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .ts-lbl{flex:1;font-size:12px;color:var(--muted)}
 .ts-sel{flex:0 0 auto;max-width:56%}
+.adm-item{margin-bottom:4px}
+.pen-row{display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:#3a2c10;border:1px solid var(--gold2);border-radius:9px;padding:7px 9px;margin:2px 0 8px}
+.pen-q{font-size:11px;font-weight:700;color:var(--gold);width:100%}
+.pen-btn{font-size:12px;font-weight:800;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 12px;cursor:pointer}
+.pen-btn.on{background:var(--gold);color:#0b2a12;border-color:var(--gold)}
+.pen-warn{font-size:10px;font-weight:700;color:#ff9b9b}
 /* gerais correct-pick badges */
 .pill.ok{border-color:var(--green)!important;background:#10362c!important}
 .ptb{font-size:9px;font-weight:800;color:#0b2a12;background:var(--green2);border-radius:5px;padding:0 4px;margin-left:5px;vertical-align:middle}
@@ -400,8 +406,13 @@ function resolveSlot(s){
   if(/^Perd\. /.test(s)){return loserOf(+s.replace("Perd. ",""))||{team:null,ph:s};}
   return {team:FLAGS[s]?s:null,ph:s};
 }
-function winnerOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n]; if(r[0]===r[1])return null; return resolveSlot(r[0]>r[1]?k.h:k.a); }
-function loserOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n]; if(r[0]===r[1])return null; return resolveSlot(r[0]>r[1]?k.a:k.h); }
+function penWin(n){return (STATE.results.pens||{})[n];} // 'h' | 'a' | undefined
+function winnerOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n];
+  if(r[0]===r[1]){const p=penWin(n); return p?resolveSlot(p==="h"?k.h:k.a):null;}
+  return resolveSlot(r[0]>r[1]?k.h:k.a); }
+function loserOf(n){ if(!done(n))return null; const k=KById[n],r=RES()[n];
+  if(r[0]===r[1]){const p=penWin(n); return p?resolveSlot(p==="h"?k.a:k.h):null;}
+  return resolveSlot(r[0]>r[1]?k.a:k.h); }
 // teams to display for any game (group=real; knockout=resolved, may be null)
 function dispTeams(g){ if(g.id<=72)return[g.h,g.a]; const a=resolveSlot(g.h),b=resolveSlot(g.a); return[a.team,b.team]; }
 function bothResolved(g){ const[h,a]=dispTeams(g); return !!h&&!!a; }
@@ -477,6 +488,10 @@ async function saveFinal(obj){
 async function saveThirds(obj){
   if(MOCK){STATE.results.thirdSlots=obj;renderAll();return;}
   await FB.setDoc(FB.doc(db,"meta","results"),{thirdSlots:obj},{merge:true});
+}
+async function savePen(id,side){
+  if(MOCK){STATE.results.pens=Object.assign({},STATE.results.pens||{},{[id]:side});renderAll();return;}
+  await FB.setDoc(FB.doc(db,"meta","results"),{pens:{[id]:side}},{merge:true});
 }
 
 /* ---------- login ---------- */
@@ -660,9 +675,11 @@ function renderMata(){
   const cell=(slot,score,win)=>{const info=resolveSlot(slot);
     const inner=info.team?`${flag(info.team)} ${ABBR[info.team]||info.team}${info.badge?` <span class="org">${info.badge}</span>`:""}`:`<span class="phn">${info.ph}</span>`;
     return `<div class="brk-row ${win?"win":""} ${info.team?"":"ph"}"><span class="nm">${inner}</span>${score!=null?`<span class="sc">${score}</span>`:""}</div>`;};
-  const card=k=>{const r=RES()[k.id],done=!!r,hw=done&&r[0]>r[1],aw=done&&r[1]>r[0],m=gmeta(k);
+  const card=k=>{const r=RES()[k.id],done=!!r,m=gmeta(k),pw=(STATE.results.pens||{})[k.id];
+    const draw=done&&r[0]===r[1], hw=done&&(r[0]>r[1]||(draw&&pw==="h")), aw=done&&(r[1]>r[0]||(draw&&pw==="a"));
     const cls="brk-card"+(k.round==="Final"?" fin":done?" done":"");
-    return `<div class="brk-match"><div class="${cls}">${cell(k.h,done?r[0]:null,hw)}${cell(k.a,done?r[1]:null,aw)}<div class="mt">${m.date} · ${m.time}</div></div></div>`;};
+    const penNote=draw&&pw?" · pên":"";
+    return `<div class="brk-match"><div class="${cls}">${cell(k.h,done?r[0]:null,hw)}${cell(k.a,done?r[1]:null,aw)}<div class="mt">${m.date} · ${m.time}${penNote}</div></div></div>`;};
   const cols=order.map(([rd,short])=>`<div class="brk-cw"><div class="brk-rh">${short}</div><div class="brk-col">${ord[rd].map(card).join("")}</div></div>`).join("");
   const tp=KO.find(k=>k.round==="Terceiro lugar"); let tphtml="";
   if(tp){const r=RES()[tp.id],done=!!r,hw=done&&r[0]>r[1],aw=done&&r[1]>r[0],m=gmeta(tp);
@@ -729,13 +746,19 @@ function renderAdmin(){
   const akey=g=>{const st=started(g),dn=done(g.id);
     if(st&&!dn)return[0,-kickoff(g)]; if(!st)return[1,kickoff(g)]; return[2,-kickoff(g)];};
   cand.sort((a,b)=>{const ka=akey(a),kb=akey(b);return ka[0]-kb[0]||ka[1]-kb[1];});
+  const pens=STATE.results.pens||{};
   const resRows=cand.map(g=>{const r=RES()[g.id]||["",""];const m=gmeta(g);const[h,a]=dispTeams(g);
     const ko=g.id>72?` <span class="ko-mini">${KOROUND[g.round]||''} 2×</span>`:'';
-    return `<div class="adm-row"><div class="am">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}${ko}<small>${m.dow} ${m.date} · ${m.time}${done(g.id)?' · ✅ lançado':''}</small></div>
+    const isDraw=g.id>72&&done(g.id)&&r[0]!==''&&r[0]===r[1];
+    const penRow=isDraw?`<div class="pen-row"><span class="pen-q">🥅 Empate — quem passou nos pênaltis?</span>
+      <button class="pen-btn ${pens[g.id]==='h'?'on':''}" data-pen="${g.id}" data-side="h">${ABBR[h]||h}</button>
+      <button class="pen-btn ${pens[g.id]==='a'?'on':''}" data-pen="${g.id}" data-side="a">${ABBR[a]||a}</button>
+      ${!pens[g.id]?'<span class="pen-warn">⚠️ defina pro bracket avançar</span>':''}</div>`:'';
+    return `<div class="adm-item"><div class="adm-row"><div class="am">${flag(h)} ${h} <span class="x">×</span> ${a} ${flag(a)}${ko}<small>${m.dow} ${m.date} · ${m.time}${done(g.id)?' · ✅ lançado':''}</small></div>
       <input class="score-in" id="rh-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${r[0]}">
       <input class="score-in" id="ra-${g.id}" type="tel" inputmode="numeric" maxlength="2" value="${r[1]}">
       <button class="btn sm" data-res="${g.id}">${done(g.id)?'↻':'Salvar'}</button>
-      ${done(g.id)?`<button class="btn sm gh" data-del="${g.id}">✕</button>`:''}</div>`;
+      ${done(g.id)?`<button class="btn sm gh" data-del="${g.id}">✕</button>`:''}</div>${penRow}</div>`;
   }).join("");
   // scorers
   const sc=(STATE.results.scorers||[]).slice().sort((a,b)=>b.g-a.g||byName(a.n,b.n));
@@ -789,6 +812,7 @@ function renderAdmin(){
     b.disabled=true; await saveResult(id,+h,+a); toast("Resultado salvo ✅"); b.disabled=false;
   });
   el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("Apagar este resultado?")){await delResult(+b.dataset.del);toast("Resultado removido");}});
+  el.querySelectorAll("[data-pen]").forEach(b=>b.onclick=async()=>{await savePen(+b.dataset.pen,b.dataset.side);toast("Vencedor dos pênaltis definido 🥅");});
   el.querySelectorAll("[data-sub]").forEach(a=>a.onclick=async e=>{e.preventDefault();await subScorer(a.dataset.sub,a.dataset.subc);toast("Gol removido");});
   const fillPlayers=()=>{const t=$("#scteam").value;const sq=(STATE.squads[t]||SQUADS[t]||[]).slice().sort(byName);
     $("#scplayer").innerHTML=`<option value="">— jogador —</option>`+sq.map(p=>`<option value="${p}">${p}</option>`).join("")+(sq.length?'':`<option value="" disabled>(elenco ainda não carregado — use o campo de texto)</option>`);};
