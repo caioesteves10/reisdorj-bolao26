@@ -744,6 +744,8 @@ function renderAdmin(){
   const now=Date.now(), WIN=5*86400000;
   const cand=SCHED.filter(g=>started(g)||kickoff(g)-now<=WIN).concat(KO.filter(g=>bothResolved(g)));
   const akey=g=>{const st=started(g),dn=done(g.id);
+    const needsPen=g.id>72&&dn&&RES()[g.id][0]===RES()[g.id][1]&&!penWin(g.id);
+    if(needsPen)return[-1,-kickoff(g)]; // drawn knockout awaiting penalties -> stays on top
     if(st&&!dn)return[0,-kickoff(g)]; if(!st)return[1,kickoff(g)]; return[2,-kickoff(g)];};
   cand.sort((a,b)=>{const ka=akey(a),kb=akey(b);return ka[0]-kb[0]||ka[1]-kb[1];});
   const pens=STATE.results.pens||{};
