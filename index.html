@@ -108,6 +108,8 @@ b{font-weight:700}
 .ar.in{background:var(--green);color:#06210f}
 .ar.out{opacity:.45}
 .ko-tag{display:inline-block;font-size:11px;font-weight:700;color:var(--gold);background:#0c3329;border:1px solid var(--gold2);border-radius:8px;padding:3px 9px;margin:0 14px 10px}
+.gapb{font-size:9.5px;font-weight:700;color:var(--muted);margin-top:2px;white-space:nowrap}
+.gapb.lead{color:var(--gold)}
 .ko-mini{font-size:9px;font-weight:800;color:#0b2a12;background:var(--gold);border-radius:5px;padding:0 4px;margin-left:4px;vertical-align:middle}
 /* admin scrollable lists */
 .adm-scroll{max-height:44vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:7px;margin-bottom:4px}
@@ -549,20 +551,18 @@ function renderAll(){
 
 function renderRank(){
   const r=standings(); const allZero=r.every(x=>x.total===0);
-  const lead=r[0], gap=r.length>1?lead.total-r[1].total:0;
-  let hero;
-  if(allZero){hero=`<div class="hero"><div><div class="lab">Bolão Reis do Rio</div>
-     <div class="nm">A bola vai rolar! ⚽</div><div class="meta">${PLAYERS.length} reis na disputa</div></div></div>`;}
-  else{hero=`<div class="hero"><div><div class="lab">Líder do bolão</div>
-     <div class="nm">👑 ${lead.name}</div><div class="meta">${lead.cravadas} cravada(s) · à frente por ${gap} pt(s)</div></div>
-     <div class="pts"><div class="n">${lead.total}</div><div class="u">PONTOS</div></div></div>`;}
+  const lead=r[0];
+  const hero=allZero?`<div class="hero"><div><div class="lab">Bolão Reis do Rio</div>
+     <div class="nm">A bola vai rolar! ⚽</div><div class="meta">${PLAYERS.length} reis na disputa</div></div></div>`:"";
   const rows=r.map((p,i)=>{
     const pc=allZero?'<span class="pos">'+(i+1)+'</span>':(i===0?'<span class="pos g">👑</span>':i===1?'<span class="pos s">2</span>':i===2?'<span class="pos b">3</span>':'<span class="pos">'+(i+1)+'</span>');
+    const diff=lead.total-p.total;
+    const gapb=allZero?'':(diff===0?'<div class="gapb lead">líder</div>':`<div class="gapb">-${diff} p/ líder</div>`);
     return `<div class="row${i===0&&!allZero?' first':''}">${pc}
       <div class="who"><div class="n">${p.name}</div><div class="tags">
         <span class="tag">Jogos ${p.jogos}</span><span class="tag">Geral ${p.geral}</span>
         <span class="tag gold">★ ${p.cravadas} cravada(s)</span></div></div>
-      <div class="tot"><div class="n">${p.total}</div><div class="u">PTS</div></div></div>`;
+      <div class="tot"><div class="n">${p.total}</div><div class="u">PTS</div>${gapb}</div></div>`;
   }).join("");
   $("#p-rank").innerHTML=`${hero}<div class="sect">Classificação <span class="r">${PLAYERS.length} reis</span></div>${rows}`;
 }
